@@ -1,0 +1,53 @@
+# 1. Install the necessary libraries
+!pip install langchain langchain-community langchain-mistralai faiss-cpu pypdf sentence-transformers mistralai
+
+# 2. Set your API Key to call Mistral LLM
+import os
+os.environ["MISTRAL_API_KEY"] = "GOFTWpLQOFF21JN1YDhO5mFDa6obJNWN"  # Replace this with your actual key
+
+
+from langchain_community.document_loaders import WebBaseLoader
+from langchain.text_splitter import CharacterTextSplitter
+
+# 1. Provide URLs you want to load
+urls = [
+    "https://en.wikipedia.org/wiki/Artificial_intelligence",
+    # Add more URLs as needed
+]
+
+# 2. Load content from URLs
+loader = WebBaseLoader(urls)
+pages = loader.load()
+
+# 3. Split into chunks for embedding
+splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+docs = splitter.split_documents(pages)
+
+# 4. Important step - convert the plain text to embeddings
+from langchain_community.embeddings import HuggingFaceEmbeddings
+embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+
+# Now save the embeddings in a vector store like Chroma or Pinecone or Facebook AI for Similarity Search (FAISS)
+from langchain_community.vectorstores import FAISS
+db = FAISS.from_documents(docs, embeddings)
+
+
+
+# 5. Connect to Mistral (LLM)
+# We will use the Mistral Medium
+from langchain_mistralai.chat_models import ChatMistralAI
+llm = ChatMistralAI(model_name="mistral-medium")
+
+## Create a Retrieval Chain
+from langchain.chains import RetrievalQA
+
+qa_chain = RetrievalQA.from_chain_type(
+    llm=llm,
+    retriever=db.as_retriever(),
+)
+
+
+# Now let's ask questions about the uploaded PDF
+query = "whats there in this article summarize it?"
+result = qa_chain.invoke({"query": query})
+print("Answer: ", result["result"])
